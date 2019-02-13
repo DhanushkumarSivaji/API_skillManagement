@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const keys = require('../../config/keys');
 const passport = require('passport');
-
+const mongoose = require('mongoose')
 
 //Load input validation
 const validateRegisterInput =   require('../../validation/register')
@@ -29,7 +29,8 @@ router.post('/register',(req,res)=>{
 
 
    const {errors , isValid} = validateRegisterInput(req.body);
-   console.log(isValid , errors)
+   console.log("req.data",req.body)
+   
    if(!isValid){
        return res.status(400).json(errors);
    }
@@ -40,7 +41,7 @@ router.post('/register',(req,res)=>{
             errors.email="email address already exists"
             return res.status(400).json(errors);
         } else {
-            
+
             const avatar = gravatar.url(req.body.email,{
                 s:'200', //size
                 r:'pg',  //rating
@@ -51,7 +52,8 @@ router.post('/register',(req,res)=>{
                 name : req.body.name,
                 email:req.body.email,
                 avatar,
-                password:req.body.password
+                password:req.body.password,
+                role:req.body.role
             })
 
             bcrypt.genSalt(10,(err,salt)=>{
@@ -66,6 +68,8 @@ router.post('/register',(req,res)=>{
         }
     })
 })
+
+
 // @route GET api/users/login
 // @desc login user / returning jwt token
 // @access Public
@@ -100,13 +104,13 @@ router.post('/login',(req,res)=>{
               jwt.sign(
                   payload,
                   keys.secretOrKey,
-                  {expiresIn:3600},
+                  {expiresIn:72000},
                   (err,token)=>{
                       res.json({
                           success:true,
                           token:'Bearer ' + token
                       })
-                  }     
+                  }
 
               )
             } else {
@@ -117,6 +121,8 @@ router.post('/login',(req,res)=>{
     })
 })
 
+
+
 // @route GET api/users/current
 // @desc Return current user
 // @access Private
@@ -125,9 +131,50 @@ router.get('/current',passport.authenticate('jwt',{session:false}),(req,res)=>{
     res.json({
         id: req.user.id,
         name:req.user.name,
-        email:req.user.email
-       
+        email:req.user.email,
+        role:req.user.role
+
     })
+})
+
+// @route   POST api/users/update/:user_id
+// @desc    edit user profile
+// @access  Private
+
+router.post('/update/:user_id',passport.authenticate('jwt',{session:false}),(req,res)=>{
+    
+    let data = {
+        findQuery: {
+            _id: mongoose.Types.ObjectId(req.params.userId)
+        },
+        model: User,
+        updateQuery: {}
+    }
+  
+    if(req.body.name) {
+        data.updateQuery.name = req.body.name
+    }
+    if(req.body.role) {
+        data.updateQuery.role = req.body.role
+    }
+    if(req.body.email) {
+        data.updateQuery.email = req.body.email
+    }
+
+     try{
+        
+        console.log(data.updateQuery)
+
+       data.model.findOneAndUpdate(req.params.userId, data.updateQuery).then(docs => {
+         console.log(docs)
+         return res.status(200).json({docs})
+       }).catch(err => {
+         return res.json({err})
+       })
+     }catch(err){
+       console.log('Something went wrong: CrudRepository: find', err)
+     }
+  
 })
 
 module.exports = router;
